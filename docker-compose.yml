@@ -8,9 +8,15 @@ services:
      - ./vote:/app
     ports:
       - "5000:80"
+    depends_on:
+      - "logstash"
     networks:
       - front-tier
       - back-tier
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "udp://localhost:12201"
 
   result:
     build: ./result
@@ -47,9 +53,41 @@ services:
     networks:
       - back-tier
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.1.1
+    container_name: elasticsearch
+    environment: 
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    networks: 
+      - log-tier
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.1.1
+    container_name: logstash
+    depends_on: 
+      - elasticsearch
+    ports:
+      - 12201:12201/udp
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro 
+    networks:
+      - log-tier
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.1.1
+    container_name: kibana
+    depends_on:
+      - logstash
+    ports: 
+      - 5601:5601
+    networks: 
+      - log-tier
+
 volumes:
   db-data:
 
 networks:
   front-tier:
   back-tier:
+  log-tier:
